@@ -1,4 +1,8 @@
 import pandas as pd
+import sys
+# Get the file from param
+file = sys.argv[1]
+
 
 def preprocess(file):
   a = pd.read_csv(file)
@@ -34,11 +38,12 @@ def generate_table(issues):
   usuario = "Alisson Steffens Henrique"
   projeto = 123456
   solicitante = "xxxxx"
+  empresa = "Empresa"
   for key in issues:
     if len(issues[key])>0:
       novo = {
           "Nome": usuario,
-          "Empresa": "Empresa",
+          "Empresa": empresa,
           "Data": key,
           "Entrada manhã (Hs)": "7:30",
           "Saída manhã (Hs)": "12:00",
@@ -55,6 +60,6 @@ def generate_table(issues):
   # save to excel, no index
   df_saidas.to_excel("saida.xlsx", index=False)
 
-df = preprocess('**.csv')
+df = preprocess(file)
 issues = get_issues(df)
 generate_table(issues)

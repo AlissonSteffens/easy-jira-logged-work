@@ -6,4 +6,9 @@ just change the variables
 * solicitante
 * empresa
 
+## Running
+```bash
+python3 easy-jira.py jira_trock.csv
+```
+
 and put the right path to the csv file exported from jira

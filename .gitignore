@@ -3,6 +3,13 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# script
+csvs/
+*.xlsx
+
+# MacOS
+.DS_Store
+
 # C extensions
 *.so
 
