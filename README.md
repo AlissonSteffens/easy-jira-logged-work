@@ -1,14 +1,32 @@
 # easy-jira-logged-work
+
 Python script to simplify creating reports from jira's TROCK logged works
 
-just change the variables
-* projeto
-* solicitante
-* empresa
+## Setup
 
-## Running
+First of all, you need to install the requirements
+
 ```bash
-python3 easy-jira.py jira_trock.csv
+pip3 install -r requirements.txt
 ```
 
-and put the right path to the csv file exported from jira
+Then, you need to change the file "metadata.properties" with your contract information
+
+```properties
+user = Alisson Steffens Henrique
+project = Projeto 1
+requester = Nome do Chefe
+company = Acme Inc.
+```
+
+## Running
+
+```bash
+python3 easy-jira.py path/jira_trock.csv
+```
+
+You can also use a optional flag to change the default process to split days by issue (default is join issues by day)
+
+```bash
+python3 easy-jira.py path/jira_trock.csv --split-by-issue
+```

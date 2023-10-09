@@ -3,6 +3,34 @@ import sys
 # Get the file from param
 file = sys.argv[1]
 
+shouldSplitByActivity = False
+
+# check if has flag --split-by-issue
+if len(sys.argv) >= 3:
+  for arg in sys.argv:
+    if arg == "--split-by-issue":
+      shouldSplitByActivity = True
+      
+# check if 'metadata.properties' exists
+try:
+  open('metadata.properties')
+except IOError:
+  print("metadata.properties file not found")
+  exit()
+
+# read properties from metadata.properties
+with open('metadata.properties') as f:
+  lines = f.readlines()
+  for line in lines:
+    if line.startswith("user"):
+      usuario = line.split("=")[1].strip()
+    if line.startswith("project"):
+      projeto = line.split("=")[1].strip()
+    if line.startswith("requester"):
+      solicitante = line.split("=")[1].strip()
+    if line.startswith("company"):
+      empresa = line.split("=")[1].strip()
+
 
 def preprocess(file):
   a = pd.read_csv(file)
@@ -35,13 +63,23 @@ def get_issues(df):
 
 def generate_table(issues):
   table = []
-  usuario = "Alisson Steffens Henrique"
-  projeto = 123456
-  solicitante = "xxxxx"
-  empresa = "Empresa"
   for key in issues:
     if len(issues[key])>0:
-      novo = {
+      if(shouldSplitByActivity):
+        for issue in issues[key]:
+          novo = get_line(usuario, empresa, key, projeto, solicitante, issue)
+          table.append(novo)
+      else:
+        novo = get_line(usuario, empresa, key, projeto, solicitante, ", ".join(issues[key]))
+        table.append(novo)
+  df_saidas = pd.DataFrame(table)
+  # save to excel, no index
+  df_saidas.to_excel("saida.xlsx", index=False)
+  # df_saidas.to_csv("saida.csv", index=False)
+
+
+def get_line(usuario, empresa, key, projeto, solicitante, issue):
+  return {
           "Nome": usuario,
           "Empresa": empresa,
           "Data": key,
@@ -53,12 +91,8 @@ def generate_table(issues):
           "Projeto": projeto,
           "Solicitante": solicitante,
           "Tempo": "08:48",
-          "Atividade": ", ".join(issues[key])
+          "Atividade": issue
       }
-    table.append(novo)
-  df_saidas = pd.DataFrame(table)
-  # save to excel, no index
-  df_saidas.to_excel("saida.xlsx", index=False)
 
 df = preprocess(file)
 issues = get_issues(df)
