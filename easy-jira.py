@@ -122,21 +122,23 @@ def getIssuesString(dailyIssues):
 
 def generate_table(issues):
   table = []
+  day_count = 0
   for key in issues:
     if len(issues[key])>0:
+      day_issue = 0
       if(shouldSplitByIssue):
-        day_issue = 0
         day_issue_total_time = getTotalTime(issues[key])
         for issue in issues[key]:
-          novo = get_line(usuario, empresa, key, projeto, solicitante, issue["issue"], issue["tempo"], day_issue == 0, day_issue_total_time)
+          novo = get_line(usuario, empresa, key, projeto, solicitante, issue["issue"], issue["tempo"], day_issue, day_issue_total_time, day_count)
           day_issue += 1
           table.append(novo)
       else:
         tempo_total = getTotalTime(issues[key])
         issues_str = getIssuesString(issues[key])
         issues_str = issues_str[:-2]
-        novo = get_line(usuario, empresa, key, projeto, solicitante,issues_str , tempo_total, True, tempo_total)
+        novo = get_line(usuario, empresa, key, projeto, solicitante,issues_str , tempo_total, day_issue, tempo_total,day_count)
         table.append(novo)
+      day_count += 1
   df_saidas = pd.DataFrame(table)
   # save to excel, no index
   writeToExcel(df_saidas)
@@ -165,20 +167,22 @@ def writeToExcel(df):
   # first row bold
   format = workbook.add_format({'bold': True})
   worksheet.set_row(0, None, format)
-  # every odd row background color gray
-  format = workbook.add_format({'bg_color': '#D3D3D3'})
+
   all_cols = "A2:"+max_col+str(total_lines+1)
-  worksheet.conditional_format(all_cols, {'type': 'formula',
-                                          'criteria': '=MOD(ROW(),2)=0',
-                                          'format': format})
-  # every even row background color white
-  format = workbook.add_format({'bg_color': '#FFFFFF'})
-  worksheet.conditional_format(all_cols, {'type': 'formula',
-                                          'criteria': '=MOD(ROW(),2)=1',
-                                          'format': format})
-  
+
   # border for every cell
   format = workbook.add_format({'border': 1})
+  worksheet.conditional_format(all_cols, {'type': 'cell',
+                                          'criteria': '!=',
+                                          'value': '"-999"',
+                                          'format': format})
+  # "Data" column should be bold
+  format = workbook.add_format({'bold': True})
+  worksheet.conditional_format("C2:C"+str(total_lines+1), {'type': 'no_blanks',
+                                          'format': format})
+  
+   # font should be Arial 10
+  format = workbook.add_format({'font_name': 'Arial', 'font_size': 10})
   worksheet.conditional_format(all_cols, {'type': 'no_blanks',
                                           'format': format})
   
@@ -208,37 +212,36 @@ def getProbableAfternoonExitTime(totalTime):
   else:
     return ""
 
-def get_line(usuario, empresa, key, projeto, solicitante, issue, tempo, isFirst, total):
-  if isFirst:
-    return {
-            "Nome": usuario,
-            "Empresa": empresa,
-            "Data": key,
-            "Entrada manhã (Hs)": initial_time,
-            "Saída manhã (Hs)": getProbableMorningExitTime(total),
-            "Entrada tarde (Hs)": getProbableAfternoonEnteringTime(total),
-            "Saída tarde (Hs)": getProbableAfternoonExitTime(total),
-            "Total (Hs)": minutesToHourString(total),
-            "Projeto": projeto,
-            "Solicitante": solicitante,
-            "Tempo": minutesToHourString(tempo),
-            "Atividade": issue
-        }
+def get_line(usuario, empresa, key, projeto, solicitante, issue, tempo, day_issue, total,day_count):
+  line = {}
+  if day_count == 0 and day_issue == 0:
+    line["Nome"] = usuario
+    line["Empresa"] = empresa
   else:
-    return {
-            "Nome": usuario,
-            "Empresa": empresa,
-            "Data": key,
-            "Entrada manhã (Hs)": "",
-            "Saída manhã (Hs)": "",
-            "Entrada tarde (Hs)": "",
-            "Saída tarde (Hs)": "",
-            "Total (Hs)": "",
-            "Projeto": projeto,
-            "Solicitante": solicitante,
-            "Tempo": minutesToHourString(tempo),
-            "Atividade": issue
-        }
+    line["Nome"] = ""
+    line["Empresa"] = ""
+
+  if day_issue == 0:
+    line["Data"] = key
+    line["Entrada manhã (Hs)"] = initial_time
+    line["Saída manhã (Hs)"] = getProbableMorningExitTime(total)
+    line["Entrada tarde (Hs)"] = getProbableAfternoonEnteringTime(total)
+    line["Saída tarde (Hs)"] = getProbableAfternoonExitTime(total)
+    line["Total (Hs)"] = minutesToHourString(total)
+  else:
+    line["Data"] = ""
+    line["Entrada manhã (Hs)"] = ""
+    line["Saída manhã (Hs)"] = ""
+    line["Entrada tarde (Hs)"] = ""
+    line["Saída tarde (Hs)"] = ""
+    line["Total (Hs)"] = ""
+
+  line["Projeto"] = projeto
+  line["Solicitante"] = solicitante
+  line["Tempo"] = minutesToHourString(tempo)
+  line["Atividade"] = issue
+  return line
+
 df = preprocess(file)
 issues = get_issues(df)
 generate_table(issues)

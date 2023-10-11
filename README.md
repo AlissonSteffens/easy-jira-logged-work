@@ -17,6 +17,10 @@ user = Alisson Steffens Henrique
 project = Projeto 1
 requester = Nome do Chefe
 company = Acme Inc.
+initial_time = 7:30
+interval_start = 12:00
+interval_end = 13:00
+complete_day_hours = 8.8
 ```
 
 ## Running
