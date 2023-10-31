@@ -117,7 +117,7 @@ def getIssuesString(dailyIssues):
   for issue in dailyIssues:
     # issues divided by comma
     issues_str += issue["issue"] + ", "
-  issues_str = issues_str[:-2]
+  # issues_str = issues_str[:-2]
   return issues_str
 
 def generate_table(issues):
@@ -144,12 +144,34 @@ def generate_table(issues):
   writeToExcel(df_saidas)
   # df_saidas.to_csv("saida.csv", index=False)
 
+meses = {
+  "JAN": 1,
+  "FEV": 2,
+  "MAR": 3,
+  "ABR": 4,
+  "MAI": 5,
+  "JUN": 6,
+  "JUL": 7,
+  "AGO": 8,
+  "SET": 9,
+  "OUT": 10,
+  "NOV": 11,
+  "DEZ": 12
+}
+
 def writeToExcel(df):
   max_col = len(df.columns)
   max_col = chr(64+max_col)
   ano = sheet.split(" ")[1]
   mes = sheet.split(" ")[0]
-  filename = str.upper(empresa)+"_"+str.upper(usuario)+"_"+ano+"_"+mes
+  mes_num = meses[mes]
+  if mes_num < 10:
+    mes_num = "0"+str(mes_num)
+  else:
+    mes_num = str(mes_num)
+  username_with_underline = usuario.replace(" ", "-")
+  empresa_name = empresa.split(" ")[0]
+  filename = str.upper(empresa_name)+"_"+str.upper(username_with_underline)+"_"+ano+"_"+mes_num
   total_lines = len(df.index)
 
   writer = pd.ExcelWriter(filename+".xlsx", engine="xlsxwriter")
