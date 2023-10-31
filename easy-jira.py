@@ -1,5 +1,4 @@
 import pandas as pd
-import sys
 import argparse
 from jproperties import Properties
 
@@ -35,77 +34,48 @@ except IOError:
 with open('metadata.properties', 'rb') as f:
   configs.load(f, 'utf-8')
 
-# get properties from metadata.properties
-usuario = configs.get("user").data
-projeto = configs.get("project").data
-solicitante = configs.get("requester").data
-empresa = configs.get("company").data
-initial_time = configs.get("initial_time").data
-interval_start = configs.get("interval_start").data
-interval_end = configs.get("interval_end").data
-complete_day_hours = float(configs.get("complete_day_hours").data)
+properties = ["user", "project", "requester", "company", "initial_time", "interval_start", "interval_end", "complete_day_hours"]
+
+usuario, projeto, solicitante, empresa, initial_time, interval_start, interval_end, complete_day_hours = (configs.get(prop).data for prop in properties)
+
+complete_day_hours = float(complete_day_hours)
 
 def preprocess(file):
   a = pd.read_csv(file)
   # get first row
   newCols = a.iloc[0].copy()
-  # get only values
-  newCols.values
   newCols.iloc[0] = a.columns[0]
   a.columns = newCols
   # drop first 2 rows
   a = a.iloc[2:-1]
-  # drop seccond column
-  a = a.drop(columns=[a.columns[1]])
+  # drop second column
+  a = a.iloc[:, [0] + list(range(2, len(a.columns)))]
   a = a.set_index(a.columns[0])
   a = a.T
   a = a.iloc[:-1]
   return a
 
-def hourStringToMinutes(string):
-  # split by :
-  splitted = string.split(":")
-  # get first element and multiply by 60
-  hours = int(splitted[0])*60
-  # get second element
-  minutes = int(splitted[1])
-  # sum both
-  return hours + minutes
+def hourStringToMinutes(time_string):
+  hours, minutes = map(int, time_string.split(":"))
+  return hours * 60 + minutes
 
 def minutesToHourString(minutes):
-  # get hours
-  hours = int(minutes/60)
-  # get minutes
-  minutes = int(minutes%60)
-  # if minutes < 10, add a 0 before
-  if minutes < 10:
-    minutes = "0"+str(minutes)
-  if hours < 10:
-    hours = "0"+str(hours)
-  # return string
-  return str(hours)+":"+str(minutes)
+  hours, minutes = divmod(minutes, 60)
+  return "{:02d}:{:02d}".format(int(hours), int(minutes))
 
 def get_issues(df):
   saidas = {}
-  for i,r in df.iterrows():
-    temp = []
-    for c in df.columns:
-      if pd.notna(r[c]):
-        #split c by space and get the first element
-        temp.append({
-          "issue": c.split(" ")[0],
-          "tempo": hourStringToMinutes(r[c])
-          })
-    if len(temp) > 0:
+  for i, r in df.iterrows():
+    temp = [{"issue": c.split(" ")[0], "tempo": hourStringToMinutes(val)} for c, val in r.dropna().items()]
+    if temp:
       saidas[i] = temp
   return saidas
 
 def getTotalTime(dailyIssues):
   if forceCompleteDay:
     return complete_day_hours*60
-  total = 0
-  for issue in dailyIssues:
-    total += issue["tempo"]
+
+  total = sum(issue["tempo"] for issue in dailyIssues)
 
   if forceAtLeastCompleteDay and total < complete_day_hours*60:
     return complete_day_hours*60
@@ -113,36 +83,29 @@ def getTotalTime(dailyIssues):
   return total
 
 def getIssuesString(dailyIssues):
-  issues_str = ""
-  for issue in dailyIssues:
-    # issues divided by comma
-    issues_str += issue["issue"] + ", "
-  # issues_str = issues_str[:-2]
+  issues_str = ", ".join(issue["issue"] for issue in dailyIssues)
   return issues_str
 
 def generate_table(issues):
   table = []
   day_count = 0
-  for key in issues:
-    if len(issues[key])>0:
-      day_issue = 0
-      if(shouldSplitByIssue):
-        day_issue_total_time = getTotalTime(issues[key])
-        for issue in issues[key]:
-          novo = get_line(usuario, empresa, key, projeto, solicitante, issue["issue"], issue["tempo"], day_issue, day_issue_total_time, day_count)
-          day_issue += 1
-          table.append(novo)
-      else:
-        tempo_total = getTotalTime(issues[key])
-        issues_str = getIssuesString(issues[key])
-        issues_str = issues_str[:-2]
-        novo = get_line(usuario, empresa, key, projeto, solicitante,issues_str , tempo_total, day_issue, tempo_total,day_count)
+  for key, daily_issues in issues.items():
+    day_issue = 0
+    if shouldSplitByIssue:
+      day_issue_total_time = getTotalTime(daily_issues)
+      for issue in daily_issues:
+        novo = get_line(usuario, empresa, key, projeto, solicitante, issue["issue"], issue["tempo"], day_issue, day_issue_total_time, day_count)
+        day_issue += 1
         table.append(novo)
-      day_count += 1
+    else:
+      tempo_total = getTotalTime(daily_issues)
+      issues_str = getIssuesString(daily_issues)
+      novo = get_line(usuario, empresa, key, projeto, solicitante, issues_str, tempo_total, day_issue, tempo_total, day_count)
+      table.append(novo)
+    day_count += 1
+
   df_saidas = pd.DataFrame(table)
-  # save to excel, no index
   writeToExcel(df_saidas)
-  # df_saidas.to_csv("saida.csv", index=False)
 
 meses = {
   "JAN": 1,
@@ -160,54 +123,41 @@ meses = {
 }
 
 def writeToExcel(df):
-  max_col = len(df.columns)
-  max_col = chr(64+max_col)
-  ano = sheet.split(" ")[1]
-  mes = sheet.split(" ")[0]
-  mes_num = meses[mes]
-  if mes_num < 10:
-    mes_num = "0"+str(mes_num)
-  else:
-    mes_num = str(mes_num)
+  max_col = chr(64 + len(df.columns))
+  mes, ano = sheet.split(" ")
+  mes_num = str(meses[mes]).zfill(2)
   username_with_underline = usuario.replace(" ", "-")
   empresa_name = empresa.split(" ")[0]
-  filename = str.upper(empresa_name)+"_"+str.upper(username_with_underline)+"_"+ano+"_"+mes_num
-  total_lines = len(df.index)
+  filename = f"{empresa_name.upper()}_{username_with_underline.upper()}_{ano}_{mes_num}"
 
-  writer = pd.ExcelWriter(filename+".xlsx", engine="xlsxwriter")
+  writer = pd.ExcelWriter(f"{filename}.xlsx", engine="xlsxwriter")
   df.to_excel(writer, sheet_name=sheet, index=False)
   workbook = writer.book
   worksheet = writer.sheets[sheet]
+
   # auto adjust columns
   for idx, col in enumerate(df):
-    series = df[col]
-    max_len = max((
-      series.astype(str).map(len).max(),
-      len(str(series.name))
-      )) + 1
+    
+    max_len = max(df[col].astype(str).map(len).max(), len(str(df[col].name))) + 1
     worksheet.set_column(idx, idx, max_len)
-  # first row bold
-  format = workbook.add_format({'bold': True})
-  worksheet.set_row(0, None, format)
 
-  all_cols = "A2:"+max_col+str(total_lines+1)
+  # first row bold
+  format_bold = workbook.add_format({'bold': True})
+  worksheet.set_row(0, None, format_bold)
+
+  all_cols = f"A2:{max_col}{len(df.index) + 1}"
 
   # border for every cell
-  format = workbook.add_format({'border': 1})
-  worksheet.conditional_format(all_cols, {'type': 'cell',
-                                          'criteria': '!=',
-                                          'value': '"-999"',
-                                          'format': format})
+  format_border = workbook.add_format({'border': 1})
+  worksheet.conditional_format(all_cols, {'type': 'cell', 'criteria': '!=', 'value': '"-999"', 'format': format_border})
+
   # "Data" column should be bold
-  format = workbook.add_format({'bold': True})
-  worksheet.conditional_format("C2:C"+str(total_lines+1), {'type': 'no_blanks',
-                                          'format': format})
-  
-   # font should be Arial 10
-  format = workbook.add_format({'font_name': 'Arial', 'font_size': 10})
-  worksheet.conditional_format(all_cols, {'type': 'no_blanks',
-                                          'format': format})
-  
+  worksheet.conditional_format(f"C2:C{len(df.index) + 1}", {'type': 'no_blanks', 'format': format_bold})
+
+  # font should be Arial 10
+  format_font = workbook.add_format({'font_name': 'Arial', 'font_size': 10})
+  worksheet.conditional_format(all_cols, {'type': 'no_blanks', 'format': format_font})
+
   # save
   writer.close()
 
@@ -235,13 +185,24 @@ def getProbableAfternoonExitTime(totalTime):
     return ""
 
 def get_line(usuario, empresa, key, projeto, solicitante, issue, tempo, day_issue, total,day_count):
-  line = {}
+  line = {
+    "Nome": "",
+    "Empresa": "",
+    "Data": "",
+    "Entrada manhã (Hs)": "",
+    "Saída manhã (Hs)": "",
+    "Entrada tarde (Hs)": "",
+    "Saída tarde (Hs)": "",
+    "Total (Hs)": "",
+    "Projeto": projeto,
+    "Solicitante": solicitante,
+    "Tempo": minutesToHourString(tempo),
+    "Atividade": issue
+  }
+
   if day_count == 0 and day_issue == 0:
     line["Nome"] = usuario
     line["Empresa"] = empresa
-  else:
-    line["Nome"] = ""
-    line["Empresa"] = ""
 
   if day_issue == 0:
     line["Data"] = key
@@ -250,18 +211,7 @@ def get_line(usuario, empresa, key, projeto, solicitante, issue, tempo, day_issu
     line["Entrada tarde (Hs)"] = getProbableAfternoonEnteringTime(total)
     line["Saída tarde (Hs)"] = getProbableAfternoonExitTime(total)
     line["Total (Hs)"] = minutesToHourString(total)
-  else:
-    line["Data"] = ""
-    line["Entrada manhã (Hs)"] = ""
-    line["Saída manhã (Hs)"] = ""
-    line["Entrada tarde (Hs)"] = ""
-    line["Saída tarde (Hs)"] = ""
-    line["Total (Hs)"] = ""
 
-  line["Projeto"] = projeto
-  line["Solicitante"] = solicitante
-  line["Tempo"] = minutesToHourString(tempo)
-  line["Atividade"] = issue
   return line
 
 df = preprocess(file)
