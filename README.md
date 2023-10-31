@@ -29,6 +29,12 @@ complete_day_hours = 8.8
 python3 easy-jira.py path/jira_trock.csv
 ```
 
+You can force your days to be complete (8.8 hours) by using the optional flag
+
+```bash
+python3 easy-jira.py path/jira_trock.csv --force-complete-day
+```
+
 You can also use a optional flag to change the default process to split days by issue (default is join issues by day)
 
 ```bash
