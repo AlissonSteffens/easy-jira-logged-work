@@ -12,6 +12,7 @@ parser.add_argument("sheet", help="Sheet name")
 parser.add_argument("--split-by-issue", help="Split by issue", action="store_true")
 parser.add_argument("--force-complete-day", help="Force complete day", action="store_true")
 parser.add_argument("--force-at-least-complete-day", help="Force complete day", action="store_true")
+parser.add_argument("--add-daily-meeting", help="Add one hour per day to cover daily meetings", action="store_true")
 
 args = parser.parse_args()
 # Get the file from param
@@ -21,6 +22,7 @@ sheet = args.sheet
 shouldSplitByIssue = args.split_by_issue
 forceCompleteDay = args.force_complete_day
 forceAtLeastCompleteDay = args.force_at_least_complete_day
+addDailyMeeting = args.add_daily_meeting
 
       
 # check if 'metadata.properties' exists
@@ -34,9 +36,9 @@ except IOError:
 with open('metadata.properties', 'rb') as f:
   configs.load(f, 'utf-8')
 
-properties = ["user", "project", "requester", "company", "initial_time", "interval_start", "interval_end", "complete_day_hours"]
+properties = ["user", "project", "requester", "company", "initial_time", "interval_start", "interval_end", "complete_day_hours", "hour_value", "meeting_time"]
 
-usuario, projeto, solicitante, empresa, initial_time, interval_start, interval_end, complete_day_hours = (configs.get(prop).data for prop in properties)
+usuario, projeto, solicitante, empresa, initial_time, interval_start, interval_end, complete_day_hours, hour_value, meeting_time = (configs.get(prop).data for prop in properties)
 
 complete_day_hours = float(complete_day_hours)
 
@@ -76,6 +78,9 @@ def getTotalTime(dailyIssues):
     return complete_day_hours*60
 
   total = sum(issue["tempo"] for issue in dailyIssues)
+
+  if addDailyMeeting:
+    total += meeting_time
 
   if forceAtLeastCompleteDay and total < complete_day_hours*60:
     return complete_day_hours*60
@@ -214,6 +219,24 @@ def get_line(usuario, empresa, key, projeto, solicitante, issue, tempo, day_issu
 
   return line
 
+print(f"Processing file {file}...")
+
 df = preprocess(file)
 issues = get_issues(df)
 generate_table(issues)
+
+# Before finishing, show some info
+# The total number of hours worked in the month
+total_hours = 0
+for key, daily_issues in issues.items():
+  total_hours += getTotalTime(daily_issues)
+
+print(f"Total de horas trabalhadas no mês: {minutesToHourString(total_hours)}")
+
+
+# convert hour_value to float (if it's not already)
+hour_value = float(hour_value)
+total_hours = float(total_hours)
+total_hours = total_hours/60
+# total value of the month hours worked (considering hour_value * total_hours)
+print(f"Valor total das horas trabalhadas no mês: R$ {total_hours*hour_value}")
